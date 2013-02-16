@@ -7,8 +7,9 @@
 
 package api.actor.examples
 
-import api.actor.ProxyActor
-import api.actor.ProxyActor._
+import api.actor._
+import scala.concurrent.{Promise, Future}
+import scala.util.{Failure, Success}
 
 class TestClass {
   println("*** Constructor Starting ***")
@@ -28,17 +29,33 @@ class TestClass {
   }
 
   def returnD = "This is method D."
+
+  @omit
+  def printE() { println("This is method E.") }
+
+  def returnF: Future[String] = {
+    Thread.sleep(3000)
+    Promise.successful("This is method F").future
+  }
 }
 
 object SimpleTest extends App {
   println("*** Creating Proxy ***")
-  val proxy = ProxyActor(classOf[TestClass])
+  val proxy = proxyActor(classOf[TestClass])
   println("*** Test Starting ***")
   println(proxy.returnD)
   proxy.printB()
   proxy.printC()
+  proxy.printE()
+
+  import scala.concurrent.ExecutionContext.Implicits.global
+  proxy.returnF.onComplete {
+    case Success(msg) => println(msg)
+    case Failure(e)   => e.printStackTrace()
+  }
+
   println("*** Test Ending ***")
 
-  Thread.sleep(1000)
-  ProxyActor.DefaultExecutor.shutdown()
+  Thread.sleep(5000)
+  shutdown()
 }
