@@ -41,7 +41,7 @@ class TestClass {
 
 object SimpleTest extends App {
   println("*** Creating Proxy ***")
-  val proxy = proxyActor(classOf[TestClass])
+  val proxy = proxyActor[TestClass]()
   println("*** Test Starting ***")
   println(proxy.returnD)
   proxy.printB()

@@ -32,7 +32,9 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="SBT: org.scala-lang:scala-library:2.10.0" level="project" />
+    <orderEntry type="library" name="SBT: org.scala-lang:scala-reflect:2.10.0" level="project" />
     <orderEntry type="library" name="SBT: cglib:cglib-nodep:2.2.2" level="project" />
+    <orderEntry type="library" scope="TEST" name="SBT: org.scalatest:scalatest_2.10:2.0.M5b:test" level="project" />
   </component>
 </module>
 
