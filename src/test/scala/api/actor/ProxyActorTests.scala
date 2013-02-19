@@ -11,11 +11,11 @@ import scala.language.postfixOps
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.annotation.tailrec
-import scala.concurrent.ExecutionContext.Implicits._
 import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
 import org.scalatest._
 import org.scalatest.concurrent.Timeouts
 import org.scalatest.time.SpanSugar
+import java.util.concurrent.Executors
 
 case class ThreadVerifier(diffList:   List[Option[Boolean]],
                           origThread: Thread = Thread.currentThread) {
@@ -84,8 +84,14 @@ class TestClass(other: BasicTestClass) extends BasicTestClass {
 
 class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
     with BeforeAndAfterAll {
+  implicit val ec = ExecutionContext.fromExecutorService(
+    Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors))
 
-  override protected def afterAll() { println("shutdown"); shutdown() }
+  override protected def afterAll() {
+    println("shutdown")
+    ec.shutdown()
+    shutdown()
+  }
 
   private def doTest(name: String, diffList: List[Option[Boolean]],
                      doCallWait: Boolean, basic: BasicTestClass,
@@ -119,7 +125,7 @@ class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
         if (!futureInt.compareAndSet(list, fut :: list)) addFuture(fut)
       }
 
-      val iterations = 2500
+      val iterations = 10000
 
       for (i <- 1 to iterations) {
         schedule(diffList) { tester.basicNoWait(_) }
