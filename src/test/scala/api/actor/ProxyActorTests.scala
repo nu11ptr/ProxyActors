@@ -12,10 +12,10 @@ import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.annotation.tailrec
 import java.util.concurrent.atomic.{AtomicReference, AtomicInteger}
+import java.util.concurrent.Executors
 import org.scalatest._
 import org.scalatest.concurrent.Timeouts
 import org.scalatest.time.SpanSugar
-import java.util.concurrent.Executors
 
 case class ThreadVerifier(diffList:   List[Option[Boolean]],
                           origThread: Thread = Thread.currentThread) {
