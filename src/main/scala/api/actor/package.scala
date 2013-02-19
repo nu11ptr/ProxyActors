@@ -43,7 +43,7 @@ package object actor {
                   method:     Method,
                   args:       Array[AnyRef],
                   methProxy:  MethodProxy): AnyRef = {
-      if (method.getAnnotation(classOf[omit]) == null) {
+      if (method.getAnnotation(classOf[omit]) == null && !Thread.holdsLock(obj)) {
         val returnType = method.getReturnType
         // We proxy the actual future object of the callee with our own
         val promise: Promise[AnyRef] =
@@ -63,11 +63,11 @@ package object actor {
         // Fire and forget for Unit returning methods
         if (returnType == Void.TYPE && !waitAll) null
         // Return our proxy future for Future returning methods
-        else if (promise != null) promise.future
+        else if (promise != null && !waitAll) promise.future
         // Block until the computation done for anything else
         else Await.result(fut, Duration.Inf)
       // If omitted, call superclass method inline in this thread
-      } else methProxy.invokeSuper(obj, args)
+      } else obj.synchronized { methProxy.invokeSuper(obj, args) }
     }
   }
 
