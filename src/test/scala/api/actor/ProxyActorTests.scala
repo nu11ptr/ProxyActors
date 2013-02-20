@@ -90,14 +90,17 @@ class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
   override protected def afterAll() {
     println("shutdown")
     ec.shutdown()
-    shutdown()
   }
 
   private def doTest(name: String, diffList: List[Option[Boolean]],
-                     doCallWait: Boolean, basic: BasicTestClass,
-                     tester: TestClass) {
+                     doCallWait: Boolean,
+                     context: ActorContext, contextOpt2: Option[ActorContext]) {
     test(name) {
       println("started test")
+
+      val context2 = contextOpt2.getOrElse(context)
+      val basic = context.proxyActor[BasicTestClass]()
+      val tester = context2.proxyActor[TestClass](Seq((basic, classOf[BasicTestClass])))
 
       // This must be done here vs. in the instance because we want the proxied
       // futures, not the original ones
@@ -153,36 +156,29 @@ class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
 
       assert(tester.noWaitInt.get === (iterations * 2))
       assert(basic.noWaitInt.get === (iterations))
+
+      context.shutdown()
+      if (contextOpt2.isDefined) context2.shutdown()
     }
   }
 
-  private def runTest(name:       String,
-                      diffList:   List[Option[Boolean]],
-                      doCallWait: Boolean,
-                      context:    () => ExecutionContext) {
-    val basic = proxyActor[BasicTestClass](context = context())
-    val tester = proxyActor[TestClass](Seq((basic, classOf[BasicTestClass])),
-                                       context())
-    testsFor(doTest(name, diffList, doCallWait, basic, tester))
-  }
-
-  runTest("Single Threaded Pool Per Instance",
+  doTest("Single Threaded Pool Per Instance",
     List(Some(true), Some(true)), // 1st and 2nd call always diff thread
     doCallWait=true,              // No chance of deadlock since sep. pools
-    createSingleThreadPool _)
+    singleThreadContext, Some(singleThreadContext))
 
-  runTest("Same Thread",
+  doTest("Same Thread",
     List(Some(false), Some(false)), // 1st and 2nd call always same thread
     doCallWait=true,                // No chance of deadlock since same thread
-    () => sameThread)
+    sameThreadContext, None)
 
-  runTest("One Single Thread Pool For All",
+  doTest("One Single Thread Pool For All",
     List(Some(true), Some(false)),  // 1st call always diff, 2nd call always same
     doCallWait=false,        // Would deadlock due to both using same thread pool
-    () => singleThreadPool)
+    singleThreadContext, None)
 
-  runTest("All Cores Thread Pool For All",
+  doTest("All Cores Thread Pool For All",
     List(Some(true), None), // 1st call always diff, 2nd call *could* be same
     doCallWait=false,       // Would deadlock due to both using same thread pool
-    () => allCoresThreadPool)
+    allCoresContext, None)
 }

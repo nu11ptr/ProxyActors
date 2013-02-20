@@ -7,34 +7,64 @@
 
 package api
 
-import scala.annotation.tailrec
-
-import java.lang.reflect.Method
-import java.util.concurrent.{Executor, Executors }
-import java.util.concurrent.atomic.AtomicReference
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.reflect.{ClassTag, classTag}
+import java.lang.reflect.Method
+import java.util.concurrent.{ExecutorService, Executor, Executors}
 import net.sf.cglib.proxy.{MethodProxy, MethodInterceptor, Enhancer}
 
 package object actor {
   // *** Thread Pools ***
-  lazy val singleThreadPool = createSingleThreadPool
-
   lazy val sameThread = ExecutionContext.fromExecutor(new Executor {
     def execute(command: Runnable) { command.run() }
   })
 
-  lazy val cachedThreadPool =
-    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
-
-  lazy val allCoresThreadPool = createFixedThreadPool()
-
-  def createSingleThreadPool =
+  def singleThreadPool =
     ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor)
 
-  def createFixedThreadPool(thr: Int = Runtime.getRuntime.availableProcessors) =
-    ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(thr))
+  def fixedThreadPool(qty: Int) =
+    ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(qty))
+
+  def allCoresThreadPool = fixedThreadPool(Runtime.getRuntime.availableProcessors)
+
+  def cachedThreadPool =
+    ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
+
+  // *** Contexts ***
+  class ActorContext(private val ec: ExecutionContext) {
+    def shutdown() {
+      // We only actually shutdown an ec if it supports it
+      ec match {
+        case e: ExecutionContextExecutorService => e.shutdown()
+        case _                                  =>
+      }
+    }
+
+    def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty): T = {
+      implicit val context = ec
+      api.actor.proxyActor[T](args)
+    }
+  }
+
+  def actorContext(ec: ExecutionContext) = new ActorContext(ec)
+
+  // TODO: Some Executors are also an ExecutorContext (after scala wraps them)
+  // Look into converting the below into an implicit conversion
+  def actorContext(e: Executor) = new ActorContext(e match {
+    case es: ExecutorService  => ExecutionContext.fromExecutorService(es)
+    case e:  Executor         => ExecutionContext.fromExecutor(e)
+  })
+
+  lazy val sameThreadContext = actorContext(sameThread: ExecutionContext)
+
+  def singleThreadContext = actorContext(singleThreadPool: ExecutionContext)
+
+  def fixedThreadContext(qty: Int) = actorContext(fixedThreadPool(qty): ExecutionContext)
+
+  def allCoresContext = actorContext(allCoresThreadPool: ExecutionContext)
+
+  def cachedThreadContext = actorContext(cachedThreadPool: ExecutionContext)
 
   // *** Method Interception ***
   private class Intercepter(implicit ec: ExecutionContext) extends MethodInterceptor {
@@ -71,44 +101,19 @@ package object actor {
   }
 
   // *** Proxy Creation ***
-  private val contextSet = new AtomicReference(Set.empty[ExecutionContext])
-
-  @tailrec
-  private def updateContextSet(context: ExecutionContext) {
-    val set = contextSet.get
-
-    if (!set.contains(context) && !contextSet.compareAndSet(set, set + context))
-      updateContextSet(context)
-  }
-
-  def proxyActor[T: ClassTag](
-      args:     Seq[(Any,Class[_])] = Seq.empty,
-      context:  ExecutionContext = createSingleThreadPool): T = {
+  def proxyActor[T](args: Seq[(Any,Class[_])] = Seq.empty)
+                   (implicit context: ExecutionContext, tag: ClassTag[T]): T = {
     val enhancer = new Enhancer
     // We don't need it and keeps proxy identity a bit more private
     enhancer.setUseFactory(false)
     enhancer.setSuperclass(classTag[T].runtimeClass)
     enhancer.setInterceptDuringConstruction(true)
-    // Yes, this means we hang on to each context until shutdown called
-    updateContextSet(context)
     // Each instance of each extended class gets own intercepter instance
-    enhancer.setCallback(new Intercepter()(context))
+    enhancer.setCallback(new Intercepter)
     val (arg, types) = args.unzip
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
     // all calls up to this point looked pretty cheap
     enhancer.create(types.toArray,
       arg.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
-  }
-
-  // *** Shutdown/Cleanup ***
-  def shutdown() {
-    // Only shutdown a thread pool if it supports that feature
-    contextSet.get.foreach {
-      case e: ExecutionContextExecutorService => e.shutdown()
-      case _                                  =>
-    }
-
-    // Release references for all thread pools
-    contextSet.set(Set.empty)
   }
 }

@@ -40,6 +40,8 @@ class TestClass {
 }
 
 object SimpleTest extends App {
+  implicit val ec = singleThreadPool
+
   println("*** Creating Proxy ***")
   val proxy = proxyActor[TestClass]()
   println("*** Test Starting ***")
@@ -57,5 +59,5 @@ object SimpleTest extends App {
   println("*** Test Ending ***")
 
   Thread.sleep(5000)
-  shutdown()
+  ec.shutdown()
 }
