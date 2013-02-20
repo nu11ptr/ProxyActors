@@ -72,7 +72,7 @@ package object actor {
                   method:     Method,
                   args:       Array[AnyRef],
                   methProxy:  MethodProxy): AnyRef = {
-      if (method.getAnnotation(classOf[omit]) == null && !Thread.holdsLock(obj)) {
+      if (!Thread.holdsLock(obj)) {
         val returnType = method.getReturnType
         // We proxy the actual future object of the callee with our own
         val promise: Promise[AnyRef] =

@@ -30,7 +30,6 @@ class TestClass {
 
   def returnD = "This is method D."
 
-  @omit
   def printE() { println("This is method E.") }
 
   def returnF: Future[String] = {
