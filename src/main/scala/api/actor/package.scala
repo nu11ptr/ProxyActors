@@ -12,7 +12,8 @@ import scala.concurrent.duration.Duration
 import scala.reflect.{ClassTag, classTag}
 import java.lang.reflect.Method
 import java.util.concurrent.{ExecutorService, Executor, Executors}
-import net.sf.cglib.proxy.{MethodProxy, MethodInterceptor, Enhancer}
+import java.util.concurrent.locks.ReentrantLock
+import net.sf.cglib.proxy._
 
 package object actor {
   // *** Thread Pools ***
@@ -66,38 +67,59 @@ package object actor {
 
   def cachedThreadContext = actorContext(cachedThreadPool: ExecutionContext)
 
-  // *** Method Interception ***
-  private class Intercepter(implicit ec: ExecutionContext) extends MethodInterceptor {
-    def intercept(obj:        AnyRef,
-                  method:     Method,
-                  args:       Array[AnyRef],
-                  methProxy:  MethodProxy): AnyRef = {
-      if (!Thread.holdsLock(obj)) {
-        val returnType = method.getReturnType
-        // We proxy the actual future object of the callee with our own
-        val promise: Promise[AnyRef] =
-          if (returnType == classOf[Future[AnyRef]]) Promise() else null
+  // *** Proxy Method Handling ***
+  private trait HasLock {
+    def $lock$: ReentrantLock
+  }
 
-        val fut = future {
-          // We synchronize on the called object to make sure that the
-          // called object never allows more than one caller at a time
-          val retVal = obj.synchronized { methProxy.invokeSuper(obj, args) }
+  private class Handler(implicit ec: ExecutionContext) {
+    private val lock = new ReentrantLock
 
-          if (promise != null)
-            // Our promise mimics the result of the actual future
-            promise.completeWith(retVal.asInstanceOf[Future[AnyRef]])
-          else retVal
+    val lockCallback = new FixedValue {
+      def loadObject: AnyRef = lock
+    }
+
+    val interceptor = new MethodInterceptor {
+      def intercept(obj:        AnyRef,
+                    method:     Method,
+                    args:       Array[AnyRef],
+                    methProxy:  MethodProxy): AnyRef = {
+        def invokeSuperWithLock(): AnyRef = {
+          lock.lock()
+          try { methProxy.invokeSuper(obj, args) } finally { lock.unlock() }
         }
 
-        // Fire and forget for Unit returning methods
-        if (returnType == Void.TYPE) null
-        // Return our proxy future for Future returning methods
-        else if (promise != null) promise.future
-        // Block until the computation done for anything else
-        else Await.result(fut, Duration.Inf)
-      // If omitted, call superclass method inline in this thread
-      } else obj.synchronized { methProxy.invokeSuper(obj, args) }
+        if (!lock.isHeldByCurrentThread) {
+          val returnType = method.getReturnType
+          // We proxy the actual future object of the callee with our own
+          val promise: Promise[AnyRef] =
+            if (returnType == classOf[Future[AnyRef]]) Promise() else null
+
+          val fut = future {
+            // We synchronize on the called object to make sure that the
+            // called object never allows more than one caller at a time
+            val retVal = invokeSuperWithLock()
+
+            if (promise != null)
+              // Our promise mimics the result of the actual future
+              promise.completeWith(retVal.asInstanceOf[Future[AnyRef]])
+            else retVal
+          }
+
+          // Fire and forget for Unit returning methods
+          if (returnType == Void.TYPE) null
+          // Return our proxy future for Future returning methods
+          else if (promise != null) promise.future
+          // Block until the computation done for anything else
+          else Await.result(fut, Duration.Inf)
+        // If omitted, call superclass method inline in this thread
+        } else invokeSuperWithLock()
+      }
     }
+  }
+
+  private object Filter extends CallbackFilter {
+    def accept(method: Method): Int = if (method.getName == "$lock$") 0 else 1
   }
 
   // *** Proxy Creation ***
@@ -108,8 +130,13 @@ package object actor {
     enhancer.setUseFactory(false)
     enhancer.setSuperclass(classTag[T].runtimeClass)
     enhancer.setInterceptDuringConstruction(true)
-    // Each instance of each extended class gets own intercepter instance
-    enhancer.setCallback(new Intercepter)
+
+    enhancer.setInterfaces(Array(classOf[HasLock]))
+    enhancer.setCallbackFilter(Filter)
+    val handler = new Handler()
+    enhancer.setCallbacks(Array(handler.lockCallback, handler.interceptor))
+    enhancer.setCallbackTypes(Array(classOf[FixedValue], classOf[MethodInterceptor]))
+
     val (arg, types) = args.unzip
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
     // all calls up to this point looked pretty cheap
