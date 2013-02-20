@@ -37,8 +37,7 @@ package object actor {
     ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(thr))
 
   // *** Method Interception ***
-  private class Intercepter(waitAll: Boolean)
-                           (implicit ec: ExecutionContext) extends MethodInterceptor {
+  private class Intercepter(implicit ec: ExecutionContext) extends MethodInterceptor {
     def intercept(obj:        AnyRef,
                   method:     Method,
                   args:       Array[AnyRef],
@@ -61,9 +60,9 @@ package object actor {
         }
 
         // Fire and forget for Unit returning methods
-        if (returnType == Void.TYPE && !waitAll) null
+        if (returnType == Void.TYPE) null
         // Return our proxy future for Future returning methods
-        else if (promise != null && !waitAll) promise.future
+        else if (promise != null) promise.future
         // Block until the computation done for anything else
         else Await.result(fut, Duration.Inf)
       // If omitted, call superclass method inline in this thread
@@ -84,8 +83,7 @@ package object actor {
 
   def proxyActor[T: ClassTag](
       args:     Seq[(Any,Class[_])] = Seq.empty,
-      context:  ExecutionContext = createSingleThreadPool,
-      waitAll:  Boolean = false): T = {
+      context:  ExecutionContext = createSingleThreadPool): T = {
     val enhancer = new Enhancer
     // We don't need it and keeps proxy identity a bit more private
     enhancer.setUseFactory(false)
@@ -94,7 +92,7 @@ package object actor {
     // Yes, this means we hang on to each context until shutdown called
     updateContextSet(context)
     // Each instance of each extended class gets own intercepter instance
-    enhancer.setCallback(new Intercepter(waitAll)(context))
+    enhancer.setCallback(new Intercepter()(context))
     val (arg, types) = args.unzip
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
     // all calls up to this point looked pretty cheap
