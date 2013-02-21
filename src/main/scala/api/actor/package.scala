@@ -68,15 +68,17 @@ package object actor {
   def cachedThreadContext = actorContext(cachedThreadPool: ExecutionContext)
 
   // *** Proxy Method Handling ***
-  private trait HasLock {
-    def $lock$: ReentrantLock
+  private trait ActorSupport {
+    def $handler$: Handler
   }
 
   private class Handler(implicit ec: ExecutionContext) {
     private val lock = new ReentrantLock
 
-    val lockCallback = new FixedValue {
-      def loadObject: AnyRef = lock
+    def lockContention: Int = if (lock.isLocked) 1 + lock.getQueueLength else 0
+
+    val handlerCallback = new FixedValue {
+      def loadObject: AnyRef = this
     }
 
     val interceptor = new MethodInterceptor {
@@ -119,7 +121,7 @@ package object actor {
   }
 
   private object Filter extends CallbackFilter {
-    def accept(method: Method): Int = if (method.getName == "$lock$") 0 else 1
+    def accept(method: Method): Int = if (method.getName == "$handler$") 0 else 1
   }
 
   // *** Proxy Creation ***
@@ -131,10 +133,10 @@ package object actor {
     enhancer.setSuperclass(classTag[T].runtimeClass)
     enhancer.setInterceptDuringConstruction(true)
 
-    enhancer.setInterfaces(Array(classOf[HasLock]))
+    enhancer.setInterfaces(Array(classOf[ActorSupport]))
     enhancer.setCallbackFilter(Filter)
     val handler = new Handler()
-    enhancer.setCallbacks(Array(handler.lockCallback, handler.interceptor))
+    enhancer.setCallbacks(Array(handler.handlerCallback, handler.interceptor))
     enhancer.setCallbackTypes(Array(classOf[FixedValue], classOf[MethodInterceptor]))
 
     val (arg, types) = args.unzip
@@ -142,5 +144,51 @@ package object actor {
     // all calls up to this point looked pretty cheap
     enhancer.create(types.toArray,
       arg.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
+  }
+
+  // *** Router ***
+  def defaultAlg[T](choices: List[T]): AnyRef = {
+    val first = choices.head.asInstanceOf[ActorSupport]
+    val firstScore = first.$handler$.lockContention
+
+    if (firstScore == 0) first
+    else
+      choices.tail.foldLeft((first, firstScore)) {
+        case (bestTup @ (best, score), curr) =>
+          val candidate = curr.asInstanceOf[ActorSupport]
+          val candScore = candidate.$handler$.lockContention
+
+          if (candScore == 0) return candidate
+          else if (candScore < score) (candidate, candScore)
+          else bestTup
+      }._1
+  }
+
+  type RouterAlg = () => AnyRef
+
+  private class RouterInterceptor(private val alg: RouterAlg)
+      extends MethodInterceptor {
+    def intercept(obj:        AnyRef,
+                  method:     Method,
+                  args:       Array[AnyRef],
+                  methProxy:  MethodProxy): AnyRef =
+      methProxy.invokeSuper(alg(), args)
+  }
+
+  def router[T: ClassTag](routees:  List[T])
+                         (alg:      RouterAlg = () => defaultAlg(routees)): T = {
+    require(routees.nonEmpty)
+
+    val enhancer = new Enhancer
+    // We don't need it and keeps proxy identity a bit more private
+    enhancer.setUseFactory(false)
+    enhancer.setSuperclass(classOf[AnyRef])
+    enhancer.setInterceptDuringConstruction(false)
+    enhancer.setInterfaces(Array(classTag[T].runtimeClass))
+    enhancer.setCallback(new RouterInterceptor(alg))
+
+    //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
+    // all calls up to this point looked pretty cheap
+    enhancer.create.asInstanceOf[T]
   }
 }
