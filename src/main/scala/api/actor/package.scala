@@ -85,7 +85,7 @@ package object actor {
     def lockContention: Int = if (lock.isLocked) 1 + lock.getQueueLength else 0
 
     val handlerCallback = new FixedValue {
-      def loadObject: AnyRef = this
+      def loadObject: AnyRef = Handler.this
     }
 
     val interceptor = new MethodInterceptor {
@@ -189,11 +189,12 @@ package object actor {
                   method:     Method,
                   args:       Array[AnyRef],
                   methProxy:  MethodProxy): AnyRef =
-      methProxy.invokeSuper(alg(), args)
+      methProxy.invoke(alg(), args)
   }
 
-  def router[T: ClassTag](routees:  List[T])
-                         (alg:      RouterAlg = () => defaultAlg(routees)): T = {
+  def proxyRouter[T](routees: List[T])
+                    (implicit alg: RouterAlg = () => defaultAlg(routees),
+                              tag: ClassTag[T]): T = {
     require(routees.nonEmpty)
 
     val enhancer = new Enhancer
