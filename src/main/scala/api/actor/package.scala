@@ -10,6 +10,7 @@ package api
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 import scala.reflect.{ClassTag, classTag}
+import scala.annotation.tailrec
 import java.lang.reflect.Method
 import java.util.concurrent.{ExecutorService, Executor, Executors}
 import java.util.concurrent.locks.ReentrantLock
@@ -44,7 +45,13 @@ package object actor {
 
     def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty): T = {
       implicit val context = ec
-      api.actor.proxyActor[T](args)
+      api.actor.proxyActor(args)
+    }
+
+    def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty)
+    : List[T] = {
+      implicit val context = ec
+      api.actor.proxyActors(qty, args)
     }
   }
 
@@ -146,6 +153,17 @@ package object actor {
       arg.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
   }
 
+  def proxyActors[T](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty)
+                    (implicit context: ExecutionContext, tag: ClassTag[T])
+  : List[T] = {
+    @tailrec
+    def buildProxyList(created: Int = 0, list: List[T] = Nil): List[T] =
+      if (created < qty) buildProxyList(created + 1, proxyActor(args) :: list)
+      else list
+
+    buildProxyList()
+  }
+
   // *** Router ***
   def defaultAlg[T](choices: List[T]): AnyRef = {
     val first = choices.head.asInstanceOf[ActorSupport]
@@ -166,8 +184,7 @@ package object actor {
 
   type RouterAlg = () => AnyRef
 
-  private class RouterInterceptor(private val alg: RouterAlg)
-      extends MethodInterceptor {
+  private class RouterInterceptor(private val alg: RouterAlg) extends MethodInterceptor {
     def intercept(obj:        AnyRef,
                   method:     Method,
                   args:       Array[AnyRef],
