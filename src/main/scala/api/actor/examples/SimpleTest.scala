@@ -7,9 +7,9 @@
 
 package api.actor.examples
 
-import api.actor._
 import scala.concurrent.{Promise, Future}
 import scala.util.{Failure, Success}
+import api.actor._
 
 class TestClass {
   println("*** Constructor Starting ***")
@@ -39,10 +39,8 @@ class TestClass {
 }
 
 object SimpleTest extends App {
-  implicit val ec = singleThreadPool
-
   println("*** Creating Proxy ***")
-  val proxy = proxyActor[TestClass]()
+  val proxy = proxyActor[TestClass](context = singleThreadContext)
   println("*** Test Starting ***")
   println(proxy.returnD)
   proxy.printB()
@@ -57,6 +55,5 @@ object SimpleTest extends App {
 
   println("*** Test Ending ***")
 
-  Thread.sleep(5000)
-  ec.shutdown()
+  actorFinished(proxy)
 }
