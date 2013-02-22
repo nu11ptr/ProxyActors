@@ -38,18 +38,12 @@ object RouterTest extends App {
   val actors = context.proxyActors[Tester](Runtime.getRuntime.availableProcessors)
   val router = proxyRouter[Test](actors)
 
-  var i = 0
-  while (i < 1000) {
-    router.doWork()
-    i += 1
-  }
-
-  Thread.sleep(10000)
+  for (_ <- 1 to 100) router.doWork()
 
   actors.foreach { a =>
     val count = a.counter
     println(s"I worked $count time(s)")
   }
 
-  context.shutdown()
+  actorsFinished(actors)
 }

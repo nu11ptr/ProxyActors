@@ -12,8 +12,9 @@ import scala.concurrent.duration.Duration
 import scala.reflect.{ClassTag, classTag}
 import scala.annotation.tailrec
 import java.lang.reflect.Method
-import java.util.concurrent.{ExecutorService, Executor, Executors}
+import java.util.concurrent.{Executor, Executors}
 import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.atomic.AtomicInteger
 import net.sf.cglib.proxy._
 
 package object actor {
@@ -34,8 +35,12 @@ package object actor {
     ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
 
   // *** Contexts ***
-  class ActorContext(private val ec: ExecutionContext) {
-    def shutdown() {
+  class ActorContext private[actor] (_ec: => ExecutionContext) {
+    private val refCount = new AtomicInteger(0)
+
+    private[actor] lazy val ec: ExecutionContext = _ec
+
+    private def shutdown() {
       // We only actually shutdown an ec if it supports it
       ec match {
         case e: ExecutionContextExecutorService => e.shutdown()
@@ -43,26 +48,28 @@ package object actor {
       }
     }
 
+    private[actor] def incRef() { refCount.incrementAndGet() }
+
+    private[actor] def decRef() { if (refCount.decrementAndGet == 0) shutdown() }
+
     def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty): T = {
-      implicit val context = ec
-      api.actor.proxyActor(args)
+      api.actor.proxyActor(args, this)
     }
 
     def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty)
     : List[T] = {
-      implicit val context = ec
-      api.actor.proxyActors(qty, args)
+      api.actor.proxyActors(qty, args, this)
     }
   }
 
-  def actorContext(ec: ExecutionContext) = new ActorContext(ec)
+  def actorContext(ec: => ExecutionContext) = new ActorContext(ec)
 
   // TODO: Some Executors are also an ExecutorContext (after scala wraps them)
   // Look into converting the below into an implicit conversion
-  def actorContext(e: Executor) = new ActorContext(e match {
+/*  def actorContext(e: Executor) = new ActorContext(e match {
     case es: ExecutorService  => ExecutionContext.fromExecutorService(es)
     case e:  Executor         => ExecutionContext.fromExecutor(e)
-  })
+  })*/
 
   lazy val sameThreadContext = actorContext(sameThread: ExecutionContext)
 
@@ -79,7 +86,7 @@ package object actor {
     def $handler$: Handler
   }
 
-  private class Handler(implicit ec: ExecutionContext) {
+  private class Handler(val ac: ActorContext) {
     private val lock = new ReentrantLock
 
     def lockContention: Int = if (lock.isLocked) 1 + lock.getQueueLength else 0
@@ -113,7 +120,7 @@ package object actor {
               // Our promise mimics the result of the actual future
               promise.completeWith(retVal.asInstanceOf[Future[AnyRef]])
             else retVal
-          }
+          }(ac.ec)
 
           // Fire and forget for Unit returning methods
           if (returnType == Void.TYPE) null
@@ -132,8 +139,10 @@ package object actor {
   }
 
   // *** Proxy Creation ***
-  def proxyActor[T](args: Seq[(Any,Class[_])] = Seq.empty)
-                   (implicit context: ExecutionContext, tag: ClassTag[T]): T = {
+  def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty,
+                              ac: ActorContext = sameThreadContext): T = {
+    ac.incRef()
+
     val enhancer = new Enhancer
     // We don't need it and keeps proxy identity a bit more private
     enhancer.setUseFactory(false)
@@ -142,7 +151,7 @@ package object actor {
 
     enhancer.setInterfaces(Array(classOf[ActorSupport]))
     enhancer.setCallbackFilter(Filter)
-    val handler = new Handler()
+    val handler = new Handler(ac)
     enhancer.setCallbacks(Array(handler.handlerCallback, handler.interceptor))
     enhancer.setCallbackTypes(Array(classOf[FixedValue], classOf[MethodInterceptor]))
 
@@ -153,16 +162,21 @@ package object actor {
       arg.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
   }
 
-  def proxyActors[T](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty)
-                    (implicit context: ExecutionContext, tag: ClassTag[T])
-  : List[T] = {
+  def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty,
+                               ac: ActorContext = sameThreadContext): List[T] = {
     @tailrec
     def buildProxyList(created: Int = 0, list: List[T] = Nil): List[T] =
-      if (created < qty) buildProxyList(created + 1, proxyActor(args) :: list)
+      if (created < qty) buildProxyList(created + 1, proxyActor(args, ac) :: list)
       else list
 
     buildProxyList()
   }
+
+  def actorFinished(obj: AnyRef) {
+    obj.asInstanceOf[ActorSupport].$handler$.ac.decRef()
+  }
+
+  def actorsFinished(list: List[AnyRef]) { list.foreach { actorFinished(_) } }
 
   // *** Router ***
   def defaultAlg[T](choices: List[T]): AnyRef = {
