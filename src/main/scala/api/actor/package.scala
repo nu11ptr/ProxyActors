@@ -88,8 +88,11 @@ package object actor {
 
   private class Handler(val ac: ActorContext) {
     private val lock = new ReentrantLock
+    private val count = new AtomicInteger(0)
 
     def lockContention: Int = if (lock.isLocked) 1 + lock.getQueueLength else 0
+
+    def serviceCount: Int = count.get
 
     val handlerCallback = new FixedValue {
       def loadObject: AnyRef = Handler.this
@@ -105,6 +108,8 @@ package object actor {
           try { methProxy.invokeSuper(obj, args) } finally { lock.unlock() }
         }
 
+        count.incrementAndGet
+
         if (!lock.isHeldByCurrentThread) {
           val returnType = method.getReturnType
           // We proxy the actual future object of the callee with our own
@@ -112,14 +117,16 @@ package object actor {
             if (returnType == classOf[Future[AnyRef]]) Promise() else null
 
           val fut = future {
-            // We synchronize on the called object to make sure that the
-            // called object never allows more than one caller at a time
-            val retVal = invokeSuperWithLock()
+            try {
+              // We synchronize on the called object to make sure that the
+              // called object never allows more than one caller at a time
+              val retVal = invokeSuperWithLock()
 
-            if (promise != null)
-              // Our promise mimics the result of the actual future
-              promise.completeWith(retVal.asInstanceOf[Future[AnyRef]])
-            else retVal
+              if (promise != null)
+                // Our promise mimics the result of the actual future
+                promise.completeWith(retVal.asInstanceOf[Future[AnyRef]])
+              else retVal
+            } finally { count.decrementAndGet }
           }(ac.ec)
 
           // Fire and forget for Unit returning methods
@@ -129,7 +136,7 @@ package object actor {
           // Block until the computation done for anything else
           else Await.result(fut, Duration.Inf)
         // If omitted, call superclass method inline in this thread
-        } else invokeSuperWithLock()
+        } else try { invokeSuperWithLock() } finally { count.decrementAndGet }
       }
     }
   }
@@ -181,14 +188,14 @@ package object actor {
   // *** Router ***
   def defaultAlg[T](choices: List[T]): AnyRef = {
     val first = choices.head.asInstanceOf[ActorSupport]
-    val firstScore = first.$handler$.lockContention
+    val firstScore = first.$handler$.serviceCount
 
     if (firstScore == 0) first
     else
       choices.tail.foldLeft((first, firstScore)) {
         case (bestTup @ (best, score), curr) =>
           val candidate = curr.asInstanceOf[ActorSupport]
-          val candScore = candidate.$handler$.lockContention
+          val candScore = candidate.$handler$.serviceCount
 
           if (candScore == 0) return candidate
           else if (candScore < score) (candidate, candScore)

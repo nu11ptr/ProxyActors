@@ -38,7 +38,7 @@ object RouterTest extends App {
   val actors = context.proxyActors[Tester](Runtime.getRuntime.availableProcessors)
   val router = proxyRouter[Test](actors)
 
-  for (_ <- 1 to 100) router.doWork()
+  for (_ <- 1 to 1000) router.doWork()
 
   actors.foreach { a =>
     val count = a.counter
