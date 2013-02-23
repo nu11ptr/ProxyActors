@@ -10,14 +10,14 @@ package api.actor.examples
 import scala.annotation.tailrec
 import api.actor._
 
-object RouterTest extends App {
+object RouterExample extends App {
   // Router interface - a trait is only required for a router, not an actor
-  trait Test {
+  trait Worker {
     def doWork()
   }
 
   // Typed actor POSO - this is the only thing we pass to the actor creation method
-  class Tester extends Test {
+  class MyWorker extends Worker {
     var counter = 0
 
     def doWork() {
@@ -38,10 +38,9 @@ object RouterTest extends App {
   }
 
   // Create one actor per logical CPU thread
-  val context = allCoresContext
-  val actors = context.proxyActors[Tester](totalCores)
+  val actors = allCoresContext.proxyActors[MyWorker](totalCores)
   // Create a router to load balance these actors
-  val router = proxyRouter[Test](actors)
+  val router = proxyRouter[Worker](actors)
 
   // Load up the work!
   for (_ <- 1 to 1000) router.doWork()
