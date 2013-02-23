@@ -33,18 +33,8 @@ class RouterTests extends FunSuite with MockFactory {
     expectResult(actor1)(defaultAlg(List(actor1, actor2)))
   }
 
-  test("Default Algorithm: Pick first actor with zero score") {
-    create()
-    (actor1.$handler$ _).expects().returning(handler1)
-    (actor2.$handler$ _).expects().returning(handler2)
-    (handler1.serviceCount _).expects().returning(1)
-    (handler2.serviceCount _).expects().returning(0)
-
-    expectResult(actor2)(defaultAlg(List(actor1, actor2)))
-  }
-
-  private def lowestScore(num: Int, exp: => ActorSupport, score1: Int, score2: Int) {
-    test("Default Algorithm: Pick lowest score when not zero #" + num) {
+  private def picked(name: String, exp: => ActorSupport, score1: Int, score2: Int) {
+    test("Default Algorithm: " + name) {
       create()
       (actor1.$handler$ _).expects().returning(handler1)
       (actor2.$handler$ _).expects().returning(handler2)
@@ -55,6 +45,11 @@ class RouterTests extends FunSuite with MockFactory {
     }
   }
 
-  testsFor(lowestScore(1, actor1, score1 = 1, score2 = 2))
-  testsFor(lowestScore(2, actor2, score1 = 2, score2 = 1))
+  testsFor(picked("Pick first actor with zero score",
+                  actor2, score1 = 1, score2 = 0))
+  testsFor(picked("Pick lowest score when not zero - actor 1",
+                 actor1, score1 = 1, score2 = 2))
+  testsFor(picked("Pick lowest score when not zero - actor 2",
+                 actor2, score1 = 2, score2 = 1))
+  testsFor(picked("Pick lowest score when same", actor1, score1 = 1, score2 = 1))
 }
