@@ -82,22 +82,19 @@ class TestClass(other: BasicTestClass) extends BasicTestClass {
   def callSelfWait(v: ThreadVerifier): Int = { callSelf(v, basicWait(_)) }
 }
 
-class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
-    with BeforeAndAfterAll {
+class ProxyActorIntegrationTests extends FunSuite with Timeouts with SpanSugar
+with BeforeAndAfterAll {
   implicit val ec = ExecutionContext.fromExecutorService(
     Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors))
 
   override protected def afterAll() {
-    println("shutdown")
     ec.shutdown()
   }
 
-  private def doTest(name: String, diffList: List[Option[Boolean]],
-                     doCallWait: Boolean,
-                     context: ActorContext, contextOpt2: Option[ActorContext]) {
+  private def behavior(name: String, diffList: List[Option[Boolean]],
+                       doCallWait: Boolean,
+                       context: ActorContext, contextOpt2: Option[ActorContext]) {
     test(name) {
-      println("started test")
-
       val context2 = contextOpt2.getOrElse(context)
       val basic = context.proxyActor[BasicTestClass]()
       val tester = context2.proxyActor[TestClass](Seq((basic, classOf[BasicTestClass])))
@@ -161,23 +158,28 @@ class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
     }
   }
 
-  doTest("Single Threaded Pool Per Instance",
+  testsFor(behavior("Single Threaded Pool Per Instance",
     List(Some(true), Some(true)), // 1st and 2nd call always diff thread
     doCallWait=true,              // No chance of deadlock since sep. pools
-    singleThreadContext, Some(singleThreadContext))
+    singleThreadContext, Some(singleThreadContext)))
 
-  doTest("Same Thread",
+  testsFor(behavior("Same Thread",
     List(Some(false), Some(false)), // 1st and 2nd call always same thread
     doCallWait=true,                // No chance of deadlock since same thread
-    sameThreadContext, None)
+    sameThreadContext, None))
 
-  doTest("One Single Thread Pool For All",
+  testsFor(behavior("One Single Thread Pool For All",
     List(Some(true), Some(false)),  // 1st call always diff, 2nd call always same
     doCallWait=false,        // Would deadlock due to both using same thread pool
-    singleThreadContext, None)
+    singleThreadContext, None))
 
-  doTest("All Cores Thread Pool For All",
+  testsFor(behavior("All Cores Thread Pool For All",
     List(Some(true), None), // 1st call always diff, 2nd call *could* be same
     doCallWait=false,       // Would deadlock due to both using same thread pool
-    allCoresContext, None)
+    allCoresContext, None))
+
+  testsFor(behavior("Cached Thread Pool For All",
+    List(Some(true), None), // 1st call always diff, 2nd call *could* be same
+    doCallWait=false,       // Would deadlock due to both using same thread pool
+    cachedThreadContext, None))
 }
