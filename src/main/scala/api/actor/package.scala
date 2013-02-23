@@ -28,6 +28,7 @@ package object actor {
   private def fixedThreadPool(qty: Int) =
     ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(qty))
 
+  /** Total number of logical CPU threads in the user's computer */
   def totalCores = Runtime.getRuntime.availableProcessors
 
   private def allCoresThreadPool = fixedThreadPool(totalCores)
@@ -36,6 +37,8 @@ package object actor {
     ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
 
   // *** Contexts ***
+  /** Class that holds an actor's thread pool. The constructor is private, so
+    * use the helper methods to create. */
   class ActorContext private[actor] (_ec: => ExecutionContext) {
     private val refCount = new AtomicInteger(0)
 
@@ -55,16 +58,39 @@ package object actor {
 
     private[actor] def decRef() { if (refCount.decrementAndGet == 0) shutdown() }
 
+    /** Creates a proxy typed actor by dynamically generating a new proxy that
+      * extends class T and uses the actor context used to invoke this method
+      *
+      * @param args     List of value/class tuple pairs to pass to T's constructor
+      *                 for each actor instance
+      * @tparam T       Class the typed proxy actor should extend
+      * @return         New proxy typed actor
+      */
     def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty): T = {
       api.actor.proxyActor(args, this)
     }
 
+    /** Creates a list of proxy typed actors by dynamically generating a new
+      * proxy that extends class T and uses the actor context used to invoke
+      * this method
+      *
+      * @param qty      Quantity of typed actors to create
+      * @param args     List of value/class tuple pairs to pass to T's constructor
+      *                 for each actor instance
+      * @tparam T       Class the typed proxy actors should extend
+      * @return         List of new proxy typed actors
+      */
     def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty)
     : List[T] = {
       api.actor.proxyActors(qty, args, this)
     }
   }
 
+  /** Creates a new actor context using a user specified ExecutionContext
+   *
+   * @param ec ExecutionContext to wrap
+   * @return New actor context
+   */
   def actorContext(ec: => ExecutionContext) = new ActorContext(ec)
 
   // TODO: Some Executors are also an ExecutorContext (after scala wraps them)
@@ -74,14 +100,27 @@ package object actor {
     case e:  Executor         => ExecutionContext.fromExecutor(e)
   })*/
 
+  /** Thread context that doesn't uses a pool but uses the calling thread
+    * for execution. The value in this is that the the called object is locked
+    * thus providing easy synchronization
+    */
   lazy val sameThreadContext = actorContext(sameThread)
 
+  /** Thread context using underlying Java single thread pool */
   def singleThreadContext = actorContext(singleThreadPool)
 
+  /** Thread context using underlying Java fixed thread pool with user
+    * specified quantity
+    *
+    * @param qty Numer of threads in the pool
+    */
   def fixedThreadContext(qty: Int) = actorContext(fixedThreadPool(qty))
 
+  /** Thread context using underlying Java fixed thread pool with a thread
+    * for each logical CPU thread */
   def allCoresContext = actorContext(allCoresThreadPool)
 
+  /** Thread context using underlying Java cached thread pool */
   def cachedThreadContext = actorContext(cachedThreadPool)
 
   // *** Proxy Method Handling ***
@@ -150,6 +189,16 @@ package object actor {
   }
 
   // *** Proxy Lifecycle ***
+  /** Creates a proxy typed actor by dynamically generating a new proxy that
+    * extends class T
+    *
+    * @param args     List of value/class tuple pairs to pass to T's constructor
+    *                 for each actor instance
+    * @param context  (Optional) Actor context holding underlying thread pool for
+    *                 actor execution
+    * @tparam T       Class the typed proxy actor should extend
+    * @return         New proxy typed actor
+    */
   def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty,
                               context: ActorContext = sameThreadContext): T = {
     context.incRef()
@@ -175,17 +224,39 @@ package object actor {
       arg.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
   }
 
+  /** Creates a list of proxy typed actors by dynamically generating a new
+    * proxy that extends class T
+    *
+    * @param qty      Quantity of typed actors to create
+    * @param args     List of value/class tuple pairs to pass to T's constructor
+    *                 for each actor instance
+    * @param context  (Optional) Actor context holding underlying thread pool for
+    *                 actor execution
+    * @tparam T       Class the typed proxy actors should extend
+    * @return         List of new proxy typed actors
+    */
   def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty,
                                context: ActorContext = sameThreadContext): List[T] =
     (for (i <- 1 to qty) yield proxyActor(args, context)).toList
 
-  def actorFinished(obj: AnyRef) {
-    obj.asInstanceOf[ActorSupport].$handler$.ac.decRef()
+  /** Call to cleanup an actor when finished with it. When all actors using a
+    * context have finished, the underlying thread pool will be stopped.
+    *
+    * @param actor Actor that we are finished with
+    */
+  def actorFinished(actor: AnyRef) {
+    actor.asInstanceOf[ActorSupport].$handler$.ac.decRef()
   }
 
-  def actorsFinished(list: List[AnyRef]) { list.foreach { actorFinished(_) } }
+  /** Call to cleanup a list of actors when finished with them. When all actors
+    * using a context have finished, the underlying thread pool will be stopped.
+    *
+    * @param actors List of actors that we are finished with
+    */
+  def actorsFinished(actors: List[AnyRef]) { actors.foreach { actorFinished(_) } }
 
   // *** Router ***
+  /** Default router load balancing function */
   def defaultAlg[T](choices: List[T]): AnyRef = {
     val first = choices.head.asInstanceOf[ActorSupport]
     val firstScore = first.$handler$.serviceCount
@@ -203,12 +274,20 @@ package object actor {
       }._1
   }
 
+  /** Type used for router algorithm functions */
   type RouterAlg = () => AnyRef
 
-  def proxyRouter[T](routees: List[T])
-                    (implicit alg: RouterAlg = () => defaultAlg(routees),
+  /** Creates a new router for load balancing work to a list of typed actors
+    *
+    * @param actors  List of typed actors to route to - must have mixed in trait T
+    * @param alg     (Optional) A function used to determine actor load balancing
+    * @tparam T      Interface router uses to discover methods it must intercept
+    * @return        New proxy object extending trait T to be used as a router
+    */
+  def proxyRouter[T](actors:  List[T])
+                    (implicit alg: RouterAlg = () => defaultAlg(actors),
                               tag: ClassTag[T]): T = {
-    require(routees.nonEmpty, "List of actors can't be empty.")
+    require(actors.nonEmpty, "List of actors can't be empty.")
 
     val enhancer = new Enhancer
     // We don't need it and keeps proxy identity a bit more private
