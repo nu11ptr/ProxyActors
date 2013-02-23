@@ -8,6 +8,8 @@ scalaVersion := "2.10.0"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
+seq(ScctPlugin.instrumentSettings : _*)
+
 libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.10.0"
 
 libraryDependencies += "cglib" % "cglib-nodep" % "2.2.2"
