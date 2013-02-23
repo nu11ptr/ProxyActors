@@ -62,6 +62,5 @@ object SimpleExample extends App {
   println("done.")
 
   println("*** Test Ending ***")
-  actorFinished(ping)
-  actorFinished(pong)
+  actorsFinished(ping, pong)
 }

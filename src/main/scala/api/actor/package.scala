@@ -233,13 +233,13 @@ package object actor {
                                context: ActorContext = sameThreadContext): List[T] =
     (for (i <- 1 to qty) yield proxyActor(args, context)).toList
 
-  /** Call to cleanup an actor when finished with it. When all actors using a
+  /** Call to cleanup actors when finished with them. When all actors using a
     * context have finished, the underlying thread pool will be stopped.
     *
-    * @param actor Actor that we are finished with
+    * @param actors (varargs) One or more actors that we are finished with
     */
-  def actorFinished(actor: AnyRef) {
-    actor.asInstanceOf[ActorSupport].$handler$.ac.decRef()
+  def actorsFinished[T](actors: T*) {
+    actors.foreach { _.asInstanceOf[T with ActorSupport].$handler$.ac.decRef() }
   }
 
   /** Call to cleanup a list of actors when finished with them. When all actors
@@ -247,7 +247,7 @@ package object actor {
     *
     * @param actors List of actors that we are finished with
     */
-  def actorsFinished(actors: List[AnyRef]) { actors.foreach { actorFinished(_) } }
+  def actorsFinished[T](actors: List[T]) { actorsFinished(actors: _*) }
 
   // *** Router ***
   /** Default router load balancing function */

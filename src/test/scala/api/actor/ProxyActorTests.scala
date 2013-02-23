@@ -157,8 +157,7 @@ class ProxyActorTests extends FunSuite with Timeouts with SpanSugar
       assert(tester.noWaitInt.get === (iterations * 2))
       assert(basic.noWaitInt.get === (iterations))
 
-      actorFinished(basic)
-      actorFinished(tester)
+      actorsFinished(basic, tester)
     }
   }
 
