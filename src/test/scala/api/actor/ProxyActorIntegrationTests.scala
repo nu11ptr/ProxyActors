@@ -109,7 +109,7 @@ with BeforeAndAfterAll {
                           (implicit ec: ExecutionContext) {
         val fut = future {
           try {
-            failAfter(100.milliseconds) { f(ThreadVerifier(diffList)) }
+            failAfter(1000.milliseconds) { f(ThreadVerifier(diffList)) }
           } catch  {
             case e: Exception =>
               e.printStackTrace()
@@ -158,27 +158,27 @@ with BeforeAndAfterAll {
     }
   }
 
-  testsFor(behavior("Single Threaded Pool Per Instance",
+  testsFor(behavior("Integration: Single Threaded Pool Per Instance",
     List(Some(true), Some(true)), // 1st and 2nd call always diff thread
     doCallWait=true,              // No chance of deadlock since sep. pools
     singleThreadContext, Some(singleThreadContext)))
 
-  testsFor(behavior("Same Thread",
+  testsFor(behavior("Integration: Same Thread",
     List(Some(false), Some(false)), // 1st and 2nd call always same thread
     doCallWait=true,                // No chance of deadlock since same thread
     sameThreadContext, None))
 
-  testsFor(behavior("One Single Thread Pool For All",
+  testsFor(behavior("Integration: One Single Thread Pool For All",
     List(Some(true), Some(false)),  // 1st call always diff, 2nd call always same
     doCallWait=false,        // Would deadlock due to both using same thread pool
     singleThreadContext, None))
 
-  testsFor(behavior("All Cores Thread Pool For All",
+  testsFor(behavior("Integration: All Cores Thread Pool For All",
     List(Some(true), None), // 1st call always diff, 2nd call *could* be same
     doCallWait=false,       // Would deadlock due to both using same thread pool
     allCoresContext, None))
 
-  testsFor(behavior("Cached Thread Pool For All",
+  testsFor(behavior("Integration: Cached Thread Pool For All",
     List(Some(true), None), // 1st call always diff, 2nd call *could* be same
     doCallWait=false,       // Would deadlock due to both using same thread pool
     cachedThreadContext, None))
