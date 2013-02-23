@@ -118,11 +118,11 @@ package object actor {
   def cachedThreadContext = actorContext(cachedThreadPool)
 
   // *** Proxy Method Handling ***
-  private trait ActorSupport {
+  private[actor] trait ActorSupport {
     def $handler$: Handler
   }
 
-  private class Handler(val ac: ActorContext) {
+  private[actor] class Handler(val ac: ActorContext) {
     private val lock = new ReentrantLock
     private val count = new AtomicInteger(0)
 
