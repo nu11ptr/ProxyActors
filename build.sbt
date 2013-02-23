@@ -13,3 +13,6 @@ libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.10.0"
 libraryDependencies += "cglib" % "cglib-nodep" % "2.2.2"
 
 libraryDependencies += "org.scalatest" % "scalatest_2.10" % "2.0.M5b" % "test"
+
+libraryDependencies +=
+    "org.scalamock" %% "scalamock-scalatest-support" % "3.0.1" % "test"
