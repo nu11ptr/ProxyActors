@@ -16,6 +16,7 @@ import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.atomic.AtomicInteger
 import net.sf.cglib.proxy._
 
+/** Package object holding all methods for actor lifecycle management */
 package object actor {
   // *** Thread Pools ***
   private lazy val sameThread = ExecutionContext.fromExecutor(new Executor {
@@ -92,13 +93,6 @@ package object actor {
    * @return New actor context
    */
   def actorContext(ec: => ExecutionContext) = new ActorContext(ec)
-
-  // TODO: Some Executors are also an ExecutorContext (after scala wraps them)
-  // Look into converting the below into an implicit conversion
-/*  def actorContext(e: Executor) = new ActorContext(e match {
-    case es: ExecutorService  => ExecutionContext.fromExecutorService(es)
-    case e:  Executor         => ExecutionContext.fromExecutor(e)
-  })*/
 
   /** Thread context that doesn't uses a pool but uses the calling thread
     * for execution. The value in this is that the the called object is locked
