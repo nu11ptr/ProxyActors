@@ -1,8 +1,8 @@
-/**
- * Created by IntelliJ IDEA.
- * User: scott
- * Date: 2/13/13
- * Time: 11:43 PM
+/*
+ * Copyright 2013 API Technologies, LLC
+ *
+ * Distributed under the terms of the modified BSD license. See the LICENSE file
+ * for further details.
  */
 
 package api.actor.examples

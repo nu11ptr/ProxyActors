@@ -1,8 +1,8 @@
-/**
- * Created by IntelliJ IDEA.
- * User: scott
- * Date: 2/14/13
- * Time: 11:37 PM
+/*
+ * Copyright 2013 API Technologies, LLC
+ *
+ * Distributed under the terms of the modified BSD license. See the LICENSE file
+ * for further details.
  */
 
 package api
@@ -149,7 +149,7 @@ package object actor {
     }
   }
 
-  // *** Proxy Creation ***
+  // *** Proxy Lifecycle ***
   def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty,
                               context: ActorContext = sameThreadContext): T = {
     context.incRef()
