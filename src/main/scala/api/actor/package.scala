@@ -251,15 +251,15 @@ package object actor {
 
   // *** Router ***
   /** Default router load balancing function */
-  def defaultAlg[T](choices: List[T]): AnyRef = {
-    val first = choices.head.asInstanceOf[ActorSupport]
+  def defaultAlg[T](choices: List[T]): T = {
+    val first = choices.head.asInstanceOf[T with ActorSupport]
     val firstScore = first.$handler$.serviceCount
 
     if (firstScore == 0) first
     else
       choices.tail.foldLeft((first, firstScore)) {
         case (bestTup @ (best, score), curr) =>
-          val candidate = curr.asInstanceOf[ActorSupport]
+          val candidate = curr.asInstanceOf[T with ActorSupport]
           val candScore = candidate.$handler$.serviceCount
 
           if (candScore == 0) return candidate
@@ -269,7 +269,7 @@ package object actor {
   }
 
   /** Type used for router algorithm functions */
-  type RouterAlg = () => AnyRef
+  type RouterAlg[T] = (List[T]) => T
 
   /** Creates a new router for load balancing work to a list of typed actors
     *
@@ -279,7 +279,7 @@ package object actor {
     * @return        New proxy object extending trait T to be used as a router
     */
   def proxyRouter[T](actors:  List[T])
-                    (implicit alg: RouterAlg = () => defaultAlg(actors),
+                    (implicit alg: RouterAlg[T] = defaultAlg[T] _,
                               tag: ClassTag[T]): T = {
     require(actors.nonEmpty, "List of actors can't be empty.")
 
@@ -295,7 +295,7 @@ package object actor {
                     method:     Method,
                     args:       Array[AnyRef],
                     methProxy:  MethodProxy): AnyRef =
-        methProxy.invoke(alg(), args)
+        methProxy.invoke(alg(actors), args)
     })
 
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
