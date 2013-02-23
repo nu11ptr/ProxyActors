@@ -10,9 +10,18 @@ package api.actor
 import org.scalatest.FunSuite
 import org.scalamock.scalatest.MockFactory
 
+private trait MyTrait { def doWork: Int }
+private class MyClass extends MyTrait { def doWork = 1 }
+
 class RouterTests extends FunSuite with MockFactory {
   private var actor1, actor2: ActorSupport = _
   private var handler1, handler2: Handler = _
+
+  test("Router: instantiation and that it actually works") {
+    val actors = proxyActors[MyClass](2)
+    val router = proxyRouter[MyTrait](actors)
+    expectResult(1)(router.doWork)
+  }
 
   // NOTE: ScalaMock throws NullPointerException when using BeforeAndAfter trait
   private def create() {
