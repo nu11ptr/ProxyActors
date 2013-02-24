@@ -80,6 +80,37 @@ The output is:
 
     1 to 1000 doubled and then summed equals 1001000
 
+Lastly, we show how we can wrap a callback class in a simple mutual exclusion
+proxy actor. This still runs in the same thread as called, but removes the
+need for us to lock our mutable class data.
+
+NOTE: This example doesn't work/compile - it is just to show what is possible.
+
+    import api.actor.{proxyActor, actorFinished}
+
+    // Not thread-safe 'as-is'
+    class MyCallbackClass extends FictionalCallbackInterface {
+        var mutableData: Int = 0
+
+        def callbackMethod(newData: Int) { mutableData += newData }
+    }
+
+    // By default, actors are created in the 'sameThread' context, so callback
+    // is executed synchronously within whatever thread(s) 'library' provides
+    val callback = proxyActor[MyCallbackClass]()
+    library.addCallbackListener(callback)
+
+    // library is used here and invokes your callback via one or more threads
+    // The library has now signalled us that the work is complete
+
+    // Remember that accessing a 'var' in scala is a method call. Therefore
+    // even directly accessing the var is subject to actor mutual exclusion
+    println(s"Our final value was: ${callback.mutabledata}")
+
+    // We aren't using a thread pool - so no need to call 'actorFinished'
+    // (but you still can and it is probably a good idea)
+    actorFinished(callback)
+
 Features
 =========
 
