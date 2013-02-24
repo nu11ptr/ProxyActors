@@ -105,12 +105,12 @@ bullet points, and hopefully you can see why something like this makes sense.
 * The base of a typed actor is your regular Scala class with no special features
 * We create a proxy of that class and instantiate it with the args of your choosing
 * This proxy can now be used just like the regular object with these differences:
-   * We lock them for mutual exclusion - they are guaranteed to only execute in one
+    * We lock them for mutual exclusion - they are guaranteed to only execute in one
 thread at a time. You don't need to lock your class's mutable data anymore.
-   * They are executed in a thread pool of your choosing (one pool for all actors,
+    * They are executed in a thread pool of your choosing (one pool for all actors,
 single thread per actor, or any other combination)
-   * Methods that return Unit or a Scala future execute asynchronously in the pool
-   * Methods that return values will still operate synchronously, however (with
+    * Methods that return Unit or a Scala future execute asynchronously in the pool
+    * Methods that return values will still operate synchronously, however (with
    exception of Scala futures).
 * When you are done with an actor, you call 'actorFinished'. When all actors
 finish that were using a thread pool, that thread pool is automatically freed.
