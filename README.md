@@ -26,6 +26,9 @@ project. Optionally, change the package to match your organization.
 Examples
 ========
 
+Hello World
+-----------
+
 First, the obligatory 'hello world'. The async. hello is called first, but
 printed after the synchronous hello due to being delayed and executed in a
 different thread.
@@ -48,6 +51,8 @@ The output is:
     Hello World! (sync)
     Hello World! (async)
 
+Load Balancing
+--------------
 
 Next, a quick example demonstrating typed actor load balancing. This example
 doubles all numbers 1 to 1000 in parallel and then adds them up and prints the
@@ -79,6 +84,9 @@ result.
 The output is:
 
     1 to 1000 doubled and then summed equals 1001000
+
+Simple Mutual Exclusion
+-----------------------
 
 Lastly, we show how we can wrap a callback class in a simple mutual exclusion
 proxy actor. This still runs in the same thread as called, but removes the
