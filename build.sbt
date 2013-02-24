@@ -1,8 +1,8 @@
-name := "ProxyActor"
+name := "ProxyActors"
 
-version := "0.9"
+version := "0.1.0"
 
-organization := "API Technologies, LLC"
+organization := "com.api-tech"
 
 scalaVersion := "2.10.0"
 
@@ -46,7 +46,7 @@ pomExtra := (
     <developer>
       <id>smeeuwsen</id>
       <name>Scott Meeuwsen</name>
-      <url>https://bitbucket.org/apitech</url>
+      <url>http://www.api-tech.com</url>
     </developer>
   </developers>
 )

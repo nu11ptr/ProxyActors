@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea_modules/ProxyActor.iml" filepath="$PROJECT_DIR$/.idea_modules/ProxyActor.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea_modules/ProxyActors.iml" filepath="$PROJECT_DIR$/.idea_modules/ProxyActors.iml" />
     </modules>
   </component>
 </project>
