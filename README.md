@@ -12,7 +12,7 @@ Installation
 
 * Requires Scala 2.10 (which requires Java 1.6) and CGLib (tested on v2.2.2)
 
-**Option 1: SBT (NOTE: Doesn't work yet - awaiting release into Maven Central)**
+**Option 1: SBT**
 
     libraryDependencies += "com.api-tech" % "proxyactors_2.10" % "0.1.0"
 
