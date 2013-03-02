@@ -69,7 +69,7 @@ package object actor {
       * @tparam T       Class the typed proxy actor should extend
       * @return         New proxy typed actor
       */
-    def proxyActor[T: ClassTag](args:  Seq[AnyRef] = Seq.empty,
+    def proxyActor[T: ClassTag](args:  Seq[Any] = Seq.empty,
                                 types: Seq[Class[_]] = Seq.empty): T =
       api.actor.proxyActor(args, types, this)
 
@@ -86,7 +86,7 @@ package object actor {
       * @return         List of new proxy typed actors
       */
     def proxyActors[T: ClassTag](qty:   Int,
-                                 args:  Seq[AnyRef] = Seq.empty,
+                                 args:  Seq[Any] = Seq.empty,
                                  types: Seq[Class[_]] = Seq.empty): List[T] =
       api.actor.proxyActors(qty, args, types, this)
   }
@@ -199,7 +199,7 @@ package object actor {
     * @tparam T       Class the typed proxy actor should extend
     * @return         New proxy typed actor
     */
-  def proxyActor[T: ClassTag](args:    Seq[AnyRef] = Seq.empty,
+  def proxyActor[T: ClassTag](args:    Seq[Any] = Seq.empty,
                               types:   Seq[Class[_]] = Seq.empty,
                               context: ActorContext = sameThreadContext): T = {
     context.incRef()
@@ -227,7 +227,8 @@ package object actor {
 
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
     // all calls up to this point looked pretty cheap
-    enhancer.create(typesArray, args.toArray).asInstanceOf[T]
+    enhancer.create(typesArray, args.toArray.asInstanceOf[Array[AnyRef]])
+      .asInstanceOf[T]
   }
 
   /** Creates a list of proxy typed actors by dynamically generating a new
@@ -244,7 +245,7 @@ package object actor {
     * @return         List of new proxy typed actors
     */
   def proxyActors[T: ClassTag](qty:     Int,
-                               args:    Seq[AnyRef] = Seq.empty,
+                               args:    Seq[Any] = Seq.empty,
                                types:   Seq[Class[_]] = Seq.empty,
                                context: ActorContext = sameThreadContext): List[T] =
     (for (i <- 1 to qty) yield proxyActor(args, types, context)).toList

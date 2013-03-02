@@ -14,6 +14,8 @@ import java.util.concurrent.{TimeUnit, Callable}
 import org.scalatest.FunSuite
 import org.scalamock.scalatest.MockFactory
 
+private class ConstructorTest(i: Int) { def this(s: String) = this(s.toInt) }
+
 private class UnitTestClass {
   @volatile var called: Boolean = false
 
@@ -54,6 +56,15 @@ class ProxyActorTests extends FunSuite with MockFactory {
     val actor = proxyActor[UnitTestClass](context = singleThreadContext)
     expectResult(true)(Await.result(actor.doFuture, Duration.Inf))
     actorsFinished(actor)
+  }
+
+  test("Proxy actor: multiple constructor") {
+    intercept[IllegalArgumentException] {
+      proxyActor[ConstructorTest](args = Seq(this, 1))
+    }
+
+    proxyActor[ConstructorTest](args = Seq(1), types = Seq(classOf[Int]))
+    proxyActor[ConstructorTest](args = Seq("1"), types = Seq(classOf[String]))
   }
 
   test("Proxy actor: implements ActorSupport") {
