@@ -58,6 +58,10 @@ class ProxyActorTests extends FunSuite with MockFactory {
     actorsFinished(actor)
   }
 
+  test("Proxy actor: class required") {
+    intercept[IllegalArgumentException] { proxyActor() }
+  }
+
   test("Proxy actor: multiple constructor") {
     intercept[IllegalArgumentException] {
       proxyActor[ConstructorTest](args = Seq(this, 1))

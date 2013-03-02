@@ -202,12 +202,12 @@ package object actor {
   def proxyActor[T: ClassTag](args:    Seq[Any] = Seq.empty,
                               types:   Seq[Class[_]] = Seq.empty,
                               context: ActorContext = sameThreadContext): T = {
-    context.incRef()
+    val baseClass = classTag[T].runtimeClass
+    require(baseClass != classOf[Nothing], "Must specify class to proxy")
 
     val enhancer = new Enhancer
     // We don't need it and keeps proxy identity a bit more private
     enhancer.setUseFactory(false)
-    val baseClass = classTag[T].runtimeClass
     enhancer.setSuperclass(baseClass)
     enhancer.setInterceptDuringConstruction(true)
     // Wedge in our 'ActorSupport' - need this to get a copy of our handler
@@ -227,8 +227,11 @@ package object actor {
 
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
     // all calls up to this point looked pretty cheap
-    enhancer.create(typesArray, args.toArray.asInstanceOf[Array[AnyRef]])
-      .asInstanceOf[T]
+    val obj = enhancer.create(typesArray,
+      args.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
+
+    context.incRef()
+    obj
   }
 
   /** Creates a list of proxy typed actors by dynamically generating a new
