@@ -97,7 +97,7 @@ with BeforeAndAfterAll {
     test(name) {
       val context2 = contextOpt2.getOrElse(context)
       val basic = context.proxyActor[BasicTestClass]()
-      val tester = context2.proxyActor[TestClass](Seq((basic, classOf[BasicTestClass])))
+      val tester = context2.proxyActor[TestClass](Seq(basic))
 
       // This must be done here vs. in the instance because we want the proxied
       // futures, not the original ones

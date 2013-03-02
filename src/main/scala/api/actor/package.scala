@@ -62,29 +62,33 @@ package object actor {
     /** Creates a proxy typed actor by dynamically generating a new proxy that
       * extends class T and uses the actor context used to invoke this method
       *
-      * @param args     List of value/class tuple pairs to pass to T's constructor
-      *                 for each actor instance
+      * @param args     List of values to pass to T's constructor for each actor
+      *                 instance
+      * @param types    List of types to locate the correct constructor. May be
+      *                 omitted for single constructor classes
       * @tparam T       Class the typed proxy actor should extend
       * @return         New proxy typed actor
       */
-    def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty): T = {
-      api.actor.proxyActor(args, this)
-    }
+    def proxyActor[T: ClassTag](args:  Seq[AnyRef] = Seq.empty,
+                                types: Seq[Class[_]] = Seq.empty): T =
+      api.actor.proxyActor(args, types, this)
 
     /** Creates a list of proxy typed actors by dynamically generating a new
       * proxy that extends class T and uses the actor context used to invoke
       * this method
       *
       * @param qty      Quantity of typed actors to create
-      * @param args     List of value/class tuple pairs to pass to T's constructor
-      *                 for each actor instance
+      * @param args     List of values to pass to T's constructor for each actor
+      *                 instance
+      * @param types    List of types to locate the correct constructor. May be
+      *                 omitted for single constructor classes
       * @tparam T       Class the typed proxy actors should extend
       * @return         List of new proxy typed actors
       */
-    def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty)
-    : List[T] = {
-      api.actor.proxyActors(qty, args, this)
-    }
+    def proxyActors[T: ClassTag](qty:   Int,
+                                 args:  Seq[AnyRef] = Seq.empty,
+                                 types: Seq[Class[_]] = Seq.empty): List[T] =
+      api.actor.proxyActors(qty, args, types, this)
   }
 
   /** Creates a new actor context using a user specified ExecutionContext
@@ -186,21 +190,25 @@ package object actor {
   /** Creates a proxy typed actor by dynamically generating a new proxy that
     * extends class T
     *
-    * @param args     List of value/class tuple pairs to pass to T's constructor
-    *                 for each actor instance
+    * @param args     List of values to pass to T's constructor for each actor
+    *                 instance
+    * @param types    List of types to locate the correct constructor. May be
+    *                 omitted for single constructor classes
     * @param context  (Optional) Actor context holding underlying thread pool for
     *                 actor execution
     * @tparam T       Class the typed proxy actor should extend
     * @return         New proxy typed actor
     */
-  def proxyActor[T: ClassTag](args: Seq[(Any,Class[_])] = Seq.empty,
+  def proxyActor[T: ClassTag](args:    Seq[AnyRef] = Seq.empty,
+                              types:   Seq[Class[_]] = Seq.empty,
                               context: ActorContext = sameThreadContext): T = {
     context.incRef()
 
     val enhancer = new Enhancer
     // We don't need it and keeps proxy identity a bit more private
     enhancer.setUseFactory(false)
-    enhancer.setSuperclass(classTag[T].runtimeClass)
+    val baseClass = classTag[T].runtimeClass
+    enhancer.setSuperclass(baseClass)
     enhancer.setInterceptDuringConstruction(true)
     // Wedge in our 'ActorSupport' - need this to get a copy of our handler
     enhancer.setInterfaces(Array(classOf[ActorSupport]))
@@ -211,27 +219,35 @@ package object actor {
     enhancer.setCallbacks(Array(handler.handlerCallback, handler.interceptor))
     enhancer.setCallbackTypes(Array(classOf[FixedValue], classOf[MethodInterceptor]))
 
-    val (arg, types) = args.unzip
+    val typesArray = if (types.isEmpty) {
+      val constructors = baseClass.getConstructors.toList
+      require(constructors.size == 1, "Ambiguous constructor, specify types")
+      constructors.head.getParameterTypes
+    } else types.toArray
+
     //NOTE: Enhancer has a builtin cache to prevent rebuilding the class and
     // all calls up to this point looked pretty cheap
-    enhancer.create(types.toArray,
-      arg.toArray.asInstanceOf[Array[AnyRef]]).asInstanceOf[T]
+    enhancer.create(typesArray, args.toArray).asInstanceOf[T]
   }
 
   /** Creates a list of proxy typed actors by dynamically generating a new
     * proxy that extends class T
     *
     * @param qty      Quantity of typed actors to create
-    * @param args     List of value/class tuple pairs to pass to T's constructor
-    *                 for each actor instance
+    * @param args     List of values to pass to T's constructor for each actor
+    *                 instance
+    * @param types    List of types to locate the correct constructor. May be
+    *                 omitted for single constructor classes
     * @param context  (Optional) Actor context holding underlying thread pool for
     *                 actor execution
     * @tparam T       Class the typed proxy actors should extend
     * @return         List of new proxy typed actors
     */
-  def proxyActors[T: ClassTag](qty: Int, args: Seq[(Any,Class[_])] = Seq.empty,
+  def proxyActors[T: ClassTag](qty:     Int,
+                               args:    Seq[AnyRef] = Seq.empty,
+                               types:   Seq[Class[_]] = Seq.empty,
                                context: ActorContext = sameThreadContext): List[T] =
-    (for (i <- 1 to qty) yield proxyActor(args, context)).toList
+    (for (i <- 1 to qty) yield proxyActor(args, types, context)).toList
 
   /** Call to cleanup actors when finished with them. When all actors using a
     * context have finished, the underlying thread pool will be stopped.
