@@ -41,8 +41,7 @@ object SimpleExample extends App {
   // We create each actor with its own single thread pool
   val pong = proxyActor[Pong](context = singleThreadContext)
   // We pass pong to ping in Ping's constructor
-  val ping = proxyActor[Ping](args = List((pong, classOf[Pong])),
-                              context = singleThreadContext)
+  val ping = proxyActor[Ping](args = Seq(pong), context = singleThreadContext)
 
   println("*** Test Starting ***")
 
