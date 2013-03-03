@@ -3,7 +3,7 @@ ProxyActors
 
 A simple, lightweight typed actor framework for Scala. It includes an optional
 load balancer for transparently load balancing typed actor workloads. The
-current implementation is only ~150 SLOC in a single file. The goal of the
+current implementation is only ~160 SLOC in a single file. The goal of the
 project is to meet some specific use cases of our company (see 'Why?' section),
 but we are hoping you will find it useful as well.
 
@@ -14,14 +14,14 @@ Installation
 
 **Option 1: SBT**
 
-    libraryDependencies += "com.api-tech" % "proxyactors_2.10" % "0.1.0"
+    libraryDependencies += "com.api-tech" % "proxyactors_2.10" % "0.2.1"
 
 **Option 2: Copy the file into your project (you'll still need CGLib)**
 
 Copy the 'package.scala' file into the folder for package api.actor in your
 project. Optionally, change the package to match your organization.
 
-**Option 3: [Download](https://bitbucket.org/apitech/proxyactors/downloads/proxyactors_2.10-0.1.0.jar) the jar (you'll still need CGLib)**
+**Option 3: [Download](https://bitbucket.org/apitech/proxyactors/downloads/proxyactors_2.10-0.2.1.jar) the jar (you'll still need CGLib)**
 
 Examples
 ========
@@ -94,7 +94,7 @@ need for us to lock our mutable class data.
 
 NOTE: This example doesn't work/compile - it is just to show what is possible.
 
-    import api.actor.{proxyActor, actorFinished}
+    import api.actor.{proxyActor, actorsFinished}
 
     // Not thread-safe 'as-is'
     class MyCallbackClass extends FictionalCallbackInterface {
@@ -115,9 +115,9 @@ NOTE: This example doesn't work/compile - it is just to show what is possible.
     // even directly accessing the var is subject to actor mutual exclusion
     println(s"Our final value was: ${callback.mutabledata}")
 
-    // We aren't using a thread pool - so no need to call 'actorFinished'
+    // We aren't using a thread pool - so no need to call 'actorsFinished'
     // (but you still can and it is probably a good idea)
-    actorFinished(callback)
+    actorsFinished(callback)
 
 Features
 =========
@@ -151,9 +151,9 @@ single thread per actor, or any other combination)
     * Methods that return Unit or a Scala future execute asynchronously in the pool
     * Methods that return values will still operate synchronously, however (with
    exception of Scala futures).
-* When you are done with an actor, you call 'actorFinished'. When all actors
+* When you are done with an actor, you call 'actorsFinished'. When all actors
 finish that were using a thread pool, that thread pool is automatically freed.
-'actorFinished' will block as needed if not all actor methods have finished
+'actorsFinished' will block as needed if not all actor methods have finished
 execution.
 
 Why?
@@ -206,7 +206,7 @@ The goal is to make every feature easy to use without needing to reach for
 the ScalaDoc. We wanted an API that fit in our heads. We only want things in
 the library that we will use.
 
-Our jar is currently ~40K and includes examples. The code itself is ~150 SLOC in
+Our jar is currently ~40K and includes examples. The code itself is ~160 SLOC in
 a single file, so no worries about tracking a bug through thousands of lines
 of code. You can even just copy the single file right into your programs.
 (unfortunately, you'd still need to have the CGLib jar)
